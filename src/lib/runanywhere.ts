@@ -37,12 +37,34 @@ export async function getEventBus() {
   return EventBus
 }
 
+// Cached references — avoid repeated dynamic imports
+let _ModelManager: any = null
+let _TextGeneration: any = null
+let _modelLoaded = false
+
 export async function getModelManager() {
+  if (_ModelManager) return _ModelManager
   const { ModelManager } = await import('@runanywhere/web')
+  _ModelManager = ModelManager
   return ModelManager
 }
 
 export async function getTextGeneration() {
+  if (_TextGeneration) return _TextGeneration
   const { TextGeneration } = await import('@runanywhere/web-llamacpp')
+  _TextGeneration = TextGeneration
   return TextGeneration
+}
+
+/** Ensure model is downloaded + loaded, skips if already done */
+export async function ensureModelReady() {
+  if (_modelLoaded) return
+  const ModelManager = await getModelManager()
+  const models = ModelManager.getModels()
+  const model = models.find((m: any) => m.id === MODELS[0].id)
+  if (model && model.status !== 'downloaded' && model.status !== 'loaded') {
+    await ModelManager.downloadModel(MODELS[0].id)
+  }
+  await ModelManager.loadModel(MODELS[0].id)
+  _modelLoaded = true
 }

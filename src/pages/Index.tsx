@@ -12,6 +12,7 @@ const Index = () => {
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [modelReady, setModelReady] = useState(false)
   const [lastTPS, setLastTPS] = useState<number | null>(null)
+  const [accelerationMode, setAccelerationMode] = useState<string>('CPU')
 
   const activeNote = notes.find(n => n.id === activeNoteId) ?? null
 
@@ -43,13 +44,21 @@ const Index = () => {
     setModelReady(true)
   }, [])
 
+  const handleTPS = useCallback((tps: number) => setLastTPS(tps), [])
+
+  const handleAccelerationMode = useCallback((mode: string) => setAccelerationMode(mode), [])
+
   if (!appReady) {
-    return <ModelLoader onReady={handleReady} />
+    return <ModelLoader onReady={handleReady} onAccelerationMode={handleAccelerationMode} />
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <div className="flex-1 flex overflow-hidden">
+    <div className="h-screen flex flex-col bg-background relative overflow-hidden">
+      {/* Subtle ambient background */}
+      <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/[0.02] rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-secondary/[0.02] rounded-full blur-3xl pointer-events-none" />
+
+      <div className="flex-1 flex overflow-hidden relative z-10">
         <NotesSidebar
           notes={notes}
           activeNoteId={activeNoteId}
@@ -57,12 +66,12 @@ const Index = () => {
           onNewNote={handleNewNote}
           onDeleteNote={handleDeleteNote}
         />
-        <NoteEditor note={activeNote} onUpdateNote={handleUpdateNote} />
-        <AIChat notes={notes} activeNote={activeNote} />
+        <NoteEditor note={activeNote} onUpdateNote={handleUpdateNote} onTPS={handleTPS} />
+        <AIChat notes={notes} activeNote={activeNote} onTPS={handleTPS} />
       </div>
       <StatusBar
         modelReady={modelReady}
-        accelerationMode="CPU"
+        accelerationMode={accelerationMode}
         lastTPS={lastTPS}
       />
     </div>

@@ -23,7 +23,7 @@ export function useSTT() {
     try {
       await initSDK()
 
-      const { AudioCapture } = await import('@runanywhere/web')
+      const { AudioCapture } = await import('@runanywhere/web-onnx')
       const capture = new AudioCapture({ sampleRate: 16000 })
       captureRef.current = capture
 

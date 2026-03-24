@@ -1,10 +1,17 @@
 import { useState, useCallback, useRef } from 'react'
-import { initSDK, getTextGeneration, getModelManager, MODELS } from '@/lib/runanywhere'
+import { initSDK, getTextGeneration, ensureModelReady } from '@/lib/runanywhere'
 
 interface TextGenState {
   output: string
   isGenerating: boolean
   tokensPerSecond: number | null
+}
+
+interface GenerateOptions {
+  maxTokens?: number
+  temperature?: number
+  onToken?: (token: string) => void
+  onTPS?: (tps: number) => void
 }
 
 export function useTextGen() {
@@ -15,31 +22,24 @@ export function useTextGen() {
   })
   const cancelRef = useRef<(() => void) | null>(null)
 
-  const generate = useCallback(async (prompt: string, onToken?: (token: string) => void) => {
+  const generate = useCallback(async (prompt: string, onToken?: (token: string) => void, onTPS?: (tps: number) => void, maxTokens: number = 150) => {
     setState({ output: '', isGenerating: true, tokensPerSecond: null })
 
     let fullOutput = ''
 
     try {
-      // Ensure SDK is initialized first
       await initSDK()
-      
       const TextGeneration = await getTextGeneration()
-      const ModelManager = await getModelManager()
-
-      // Ensure model is downloaded and loaded
-      const models = ModelManager.getModels()
-      const model = models.find((m: any) => m.id === MODELS[0].id)
-      
-      if (model && model.status !== 'downloaded' && model.status !== 'loaded') {
-        await ModelManager.downloadModel(MODELS[0].id)
-      }
-      
-      await ModelManager.loadModel(MODELS[0].id)
+      await ensureModelReady()
 
       const { stream, result, cancel } = await TextGeneration.generateStream(prompt, {
-        maxTokens: 512,
-        temperature: 0.7,
+        maxTokens,
+        temperature: 0.5,
+        topP: 0.85,
+        repeatPenalty: 1.1,
+        // Override context size - default was 8192 which causes huge WASM memory allocation delays
+        // 1024 is plenty for summaries and short chats while being much faster to allocate
+        n_ctx: 1024,
       })
 
       cancelRef.current = cancel
@@ -51,11 +51,13 @@ export function useTextGen() {
       }
 
       const finalResult = await result
+      const tps = Math.round(finalResult.tokensPerSecond * 10) / 10
       setState(s => ({
         ...s,
         isGenerating: false,
-        tokensPerSecond: Math.round(finalResult.tokensPerSecond * 10) / 10,
+        tokensPerSecond: tps,
       }))
+      onTPS?.(tps)
       return fullOutput
     } catch (err) {
       console.error('Text generation error:', err)
